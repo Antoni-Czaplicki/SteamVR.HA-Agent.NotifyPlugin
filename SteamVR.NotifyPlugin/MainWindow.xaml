@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:SteamVR.NotifyPlugin"
         xmlns:glWpfControl="clr-namespace:OpenTK.Wpf;assembly=GLWpfControl"
         mc:Ignorable="d"
-        Title="MainWindow" Height="100" Width="250" Closing="Window_Closing" Top="-10000" Left="-10000">
+        Title="SteamVR Notify Plugin" Height="100" Width="250" Closing="Window_Closing" Top="-10000" Left="-10000">
     <StackPanel Orientation="Vertical" Margin="10">
         <TextBlock Text="SteamVR Notify Plugin" FontSize="20" FontWeight="Bold" Margin="0 0 0 10"/>
         <glWpfControl:GLWpfControl

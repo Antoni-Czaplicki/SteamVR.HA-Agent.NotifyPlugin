@@ -43,6 +43,22 @@ namespace SteamVR.NotifyPlugin.Notification
             return LoadImage(image, textAreas);
         }
         
+        
+        public static Texture LoadImageUrl(string url, IEnumerable<Payload.TextArea> textAreas = null)
+        {
+            Bitmap image;
+            try
+            {
+                image = new Bitmap(new MemoryStream(new System.Net.WebClient().DownloadData(url)));
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine($"Texture: Exception loading image url: {e.Message}");
+                return null;
+            }
+            return LoadImage(image, textAreas);
+        }
+        
         public static Texture LoadImageBase64(string bytes, IEnumerable<Payload.TextArea> textAreas = null)
         {
             return LoadImageBytes(Convert.FromBase64String(bytes), textAreas);

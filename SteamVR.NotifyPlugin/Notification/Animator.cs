@@ -23,9 +23,9 @@ namespace SteamVR.NotifyPlugin.Notification
         private string _sessionId = "";
 
         public Animator(
-            ulong overlayHandle, 
-            Action requestForNewAnimation, 
-            Action<string, string> responseAtCompletion, 
+            ulong overlayHandle,
+            Action requestForNewAnimation,
+            Action<string, string> responseAtCompletion,
             Action<string, string, string> responseAtError
         )
         {
@@ -45,7 +45,7 @@ namespace SteamVR.NotifyPlugin.Notification
             {
                 // _texture = new Texture(_overlayHandle);
                 _renderTexture = new RenderTexture(1024, 1024);
-            
+
                 // Create SteamVR texture
                 _vrTexture = new Texture_t
                 {
@@ -54,17 +54,19 @@ namespace SteamVR.NotifyPlugin.Notification
                     handle = (IntPtr)_renderTexture.GetTexture()
                 };
             }
-            
+
             if (_texture == null)
             {
                 _renderTexture.Bind();
                 return false;
             }
+
             _elapsedTime += deltaTime;
             _renderTexture.Bind();
             if (_texture == null) return false; // This can somehow still happen for some reason?
             _texture?.Bind();
-            GraphicsCompanion.SetViewportDimensions(_renderTexture.GetWidth(), _renderTexture.GetHeight(), _texture?.Width ?? 1, _texture?.Height ?? 1);
+            GraphicsCompanion.SetViewportDimensions(_renderTexture.GetWidth(), _renderTexture.GetHeight(),
+                _texture?.Width ?? 1, _texture?.Height ?? 1);
             return true;
         }
 
@@ -72,14 +74,16 @@ namespace SteamVR.NotifyPlugin.Notification
         {
             // Assign texture
             var error = OpenVR.Overlay.SetOverlayTexture(_overlayHandle, ref _vrTexture);
-            if (error != EVROverlayError.None) {
+            if (error != EVROverlayError.None)
+            {
                 if (_payload == null)
                 {
                     _responseAtError?.Invoke(_sessionId, "", Enum.GetName(typeof(EVROverlayError), error));
                 }
                 else
                 {
-                    _responseAtError?.Invoke(_sessionId, _payload.customProperties.nonce, Enum.GetName(typeof(EVROverlayError), error));
+                    _responseAtError?.Invoke(_sessionId, _payload.customProperties.nonce,
+                        Enum.GetName(typeof(EVROverlayError), error));
                 }
             }
         }
@@ -89,7 +93,8 @@ namespace SteamVR.NotifyPlugin.Notification
             return _texture?.GetFrame(_elapsedTime) ?? 0;
         }
 
-        public enum AnimationStage {
+        public enum AnimationStage
+        {
             Idle,
             EasingIn,
             Staying,
@@ -99,9 +104,10 @@ namespace SteamVR.NotifyPlugin.Notification
             LoadingImage
         }
 
-        private void Worker() {
+        private void Worker()
+        {
             Thread.CurrentThread.IsBackground = true;
-            
+
             // General
             var deviceTransform = EasyOpenVRSingleton.Utils.GetEmptyTransform();
             var notificationTransform = EasyOpenVRSingleton.Utils.GetEmptyTransform();
@@ -110,7 +116,7 @@ namespace SteamVR.NotifyPlugin.Notification
             var height = 1f;
             var properties = new Payload.CustomProperties();
             var anchorIndex = uint.MaxValue;
-			var useWorldDeviceTransform = false;
+            var useWorldDeviceTransform = false;
 
             // Follow
             var follow = new Payload.Follow();
@@ -118,7 +124,7 @@ namespace SteamVR.NotifyPlugin.Notification
             var targetTransform = EasyOpenVRSingleton.Utils.GetEmptyTransform();
             var followLerp = 0.0;
             var followTween = Tween.GetFunc(0);
-            var followIsLerping = false;         
+            var followIsLerping = false;
 
             // General Animation
             var stage = AnimationStage.Idle;
@@ -152,7 +158,7 @@ namespace SteamVR.NotifyPlugin.Notification
             {
                 timeStarted = DateTime.Now.Ticks;
                 bool skip = false;
-                
+
                 if (_payload == null) // Get new payload
                 {
                     _requestForNewPayload?.Invoke();
@@ -161,14 +167,18 @@ namespace SteamVR.NotifyPlugin.Notification
                 }
                 else if (stage == AnimationStage.Idle)
                 {
-                    #region init 
+                    #region init
+
                     // Initialize things that stay the same during the whole animation
                     stage = AnimationStage.LoadingImage;
                     properties = _payload.customProperties;
-					useWorldDeviceTransform = properties.anchorType != 0 && properties.attachToAnchor && (properties.ignoreAnchorYaw || properties.ignoreAnchorPitch || properties.ignoreAnchorRoll);
+                    useWorldDeviceTransform = properties.anchorType != 0 && properties.attachToAnchor &&
+                                              (properties.ignoreAnchorYaw || properties.ignoreAnchorPitch ||
+                                               properties.ignoreAnchorRoll);
                     follow = properties.follow;
                     followTween = Tween.GetFunc(follow.tweenType);
-                    var hmdHz = (int) Math.Round(_vr.GetFloatTrackedDeviceProperty(0, ETrackedDeviceProperty.Prop_DisplayFrequency_Float));
+                    var hmdHz = (int)Math.Round(_vr.GetFloatTrackedDeviceProperty(0,
+                        ETrackedDeviceProperty.Prop_DisplayFrequency_Float));
                     hz = properties.animationHz > 0 ? properties.animationHz : hmdHz;
                     msPerFrame = 1000 / hz;
 
@@ -189,18 +199,42 @@ namespace SteamVR.NotifyPlugin.Notification
 
                     bool LoadImage()
                     {
-                        Debug.WriteLine($"Creating texture on UI thread with {_payload.customProperties.textAreas.Length} text areas");
-                        if (!(_texture is null))
+                        Debug.WriteLine(
+                            $"Creating texture on UI thread with {_payload.customProperties.textAreas.Length} text areas");
+                        if (_texture is not null)
                         {
                             _texture = null;
                         }
-                        _texture = _payload.imageData?.Length > 0
-                            ? Texture.LoadImageBase64(_payload.imageData, _payload.customProperties.textAreas)
-                            : Texture.LoadImageFile(_payload.imagePath);
+
+                        if (_payload.imageUrl?.Length > 0)
+                        {
+                            if (_payload.imageUrl.StartsWith("http"))
+                            {
+                                _texture = Texture.LoadImageUrl(_payload.imageUrl, _payload.customProperties.textAreas);
+                            }
+                            else
+                            {
+                                Debug.WriteLine("Invalid imageUrl");
+                                _responseAtError?.Invoke(_sessionId, _payload.customProperties.nonce,
+                                    "Invalid imageUrl");
+                            }
+
+                            _texture = Texture.LoadImageUrl(_payload.imageUrl, _payload.customProperties.textAreas);
+                        }
+                        else if (_payload.imagePath?.Length > 0)
+                        {
+                            _texture = Texture.LoadImageFile(_payload.imagePath, _payload.customProperties.textAreas);
+                        }
+                        else if (_payload.imageData?.Length > 0)
+                        {
+                            _texture = Texture.LoadImageBase64(_payload.imageData, _payload.customProperties.textAreas);
+                        }
+
                         if (_texture is null)
                         {
                             Debug.WriteLine("Failed to load texture");
-                            _responseAtError?.Invoke(_sessionId, _payload.customProperties.nonce, "Failed to load image into texture");
+                            _responseAtError?.Invoke(_sessionId, _payload.customProperties.nonce,
+                                "Failed to load image into texture");
                             stage = AnimationStage.Idle;
                             properties = null;
                             animationCount = 0;
@@ -229,6 +263,7 @@ namespace SteamVR.NotifyPlugin.Notification
                         Debug.WriteLine("Running animator on GUI thread already.");
                         loadedImage = LoadImage();
                     }
+
                     if (!loadedImage) continue;
 
                     // var size = _texture.Load(_payload.imageData, properties.textAreas);
@@ -238,27 +273,28 @@ namespace SteamVR.NotifyPlugin.Notification
 
                     // Animation limits
                     easeInCount = (
-                        properties.transitions.Length > 0 
-                            ? properties.transitions[0].durationMs 
+                        properties.transitions.Length > 0
+                            ? properties.transitions[0].durationMs
                             : 100
-                        ) / msPerFrame;
+                    ) / msPerFrame;
                     stayCount = properties.durationMs / msPerFrame;
                     easeOutCount = (
-                        properties.transitions.Length >= 2 
-                            ? properties.transitions[1].durationMs 
-                            : properties.transitions.Length > 0 
-                                ? properties.transitions[0].durationMs 
+                        properties.transitions.Length >= 2
+                            ? properties.transitions[1].durationMs
+                            : properties.transitions.Length > 0
+                                ? properties.transitions[0].durationMs
                                 : 100
-                        ) / msPerFrame;
+                    ) / msPerFrame;
                     easeInLimit = easeInCount;
                     stayLimit = easeInLimit + stayCount;
                     easeOutLimit = stayLimit + easeOutCount;
                     // Debug.WriteLine($"{easeInCount}, {stayCount}, {easeOutCount} - {easeInLimit}, {stayLimit}, {easeOutLimit}");
 
                     // Pose
-                    deviceTransform = properties.anchorType == 0 
+                    deviceTransform = properties.anchorType == 0
                         ? EasyOpenVRSingleton.Utils.GetEmptyTransform()
-                        : _vr.GetDeviceToAbsoluteTrackingPose()[anchorIndex == uint.MaxValue ? 0 : anchorIndex].mDeviceToAbsoluteTracking;
+                        : _vr.GetDeviceToAbsoluteTrackingPose()[anchorIndex == uint.MaxValue ? 0 : anchorIndex]
+                            .mDeviceToAbsoluteTracking;
                     if (!properties.attachToAnchor)
                     {
                         // Restrict rotation if necessary
@@ -268,6 +304,7 @@ namespace SteamVR.NotifyPlugin.Notification
                         if (properties.ignoreAnchorRoll) hmdEuler.v2 = 0;
                         deviceTransform = deviceTransform.FromEuler(hmdEuler);
                     }
+
                     originTransform = deviceTransform;
                     targetTransform = deviceTransform;
 
@@ -280,21 +317,41 @@ namespace SteamVR.NotifyPlugin.Notification
                     animateX.Reset();
                     animateScale.Reset();
                     animateOpacity.Reset();
-                    if (properties.animations.Length > 0) {
-                        foreach(var anim in properties.animations) {
-                            switch (anim.property) {
+                    if (properties.animations.Length > 0)
+                    {
+                        foreach (var anim in properties.animations)
+                        {
+                            switch (anim.property)
+                            {
                                 case 0: break;
-                                case 1: animateYaw = new Cycler(anim); break;
-                                case 2: animatePitch = new Cycler(anim); break;
-                                case 3: animateRoll = new Cycler(anim); break;
-                                case 4: animateZ = new Cycler(anim); break;
-                                case 5: animateY = new Cycler(anim); break;
-                                case 6: animateX = new Cycler(anim); break;
-                                case 7: animateScale = new Cycler(anim); break;
-                                case 8: animateOpacity = new Cycler(anim); break;
+                                case 1:
+                                    animateYaw = new Cycler(anim);
+                                    break;
+                                case 2:
+                                    animatePitch = new Cycler(anim);
+                                    break;
+                                case 3:
+                                    animateRoll = new Cycler(anim);
+                                    break;
+                                case 4:
+                                    animateZ = new Cycler(anim);
+                                    break;
+                                case 5:
+                                    animateY = new Cycler(anim);
+                                    break;
+                                case 6:
+                                    animateX = new Cycler(anim);
+                                    break;
+                                case 7:
+                                    animateScale = new Cycler(anim);
+                                    break;
+                                case 8:
+                                    animateOpacity = new Cycler(anim);
+                                    break;
                             }
                         }
                     }
+
                     #endregion
                 }
 
@@ -303,30 +360,35 @@ namespace SteamVR.NotifyPlugin.Notification
                     // Animation stage
                     if (animationCount < easeInLimit) stage = AnimationStage.EasingIn;
                     else if (animationCount >= stayLimit) stage = AnimationStage.EasingOut;
-                    else stage = follow.enabled 
-                            || properties.animations.Length > 0 
-                            || useWorldDeviceTransform
-                            ? AnimationStage.Animating 
+                    else
+                        stage = follow.enabled
+                                || properties.animations.Length > 0
+                                || useWorldDeviceTransform
+                            ? AnimationStage.Animating
                             : AnimationStage.Staying;
-                    animationSeconds = (float) animationCount / (float) hz;
+                    animationSeconds = (float)animationCount / (float)hz;
 
                     #region stage inits
-                    if (animationCount == 0) 
-                    { // Init EaseIn
-                        transition = properties.transitions.Length > 0 
-                                ? properties.transitions[0] 
-                                : new Payload.Transition();
+
+                    if (animationCount == 0)
+                    {
+                        // Init EaseIn
+                        transition = properties.transitions.Length > 0
+                            ? properties.transitions[0]
+                            : new Payload.Transition();
                         tween = Tween.GetFunc(transition.tweenType);
                     }
 
                     if (animationCount == stayLimit)
-                    { // Init EaseOut
+                    {
+                        // Init EaseOut
                         if (properties.transitions.Length >= 2)
                         {
                             transition = properties.transitions[1];
                             tween = Tween.GetFunc(transition.tweenType);
                         }
                     }
+
                     #endregion
 
                     // Setup and normalized progression ratio
@@ -337,28 +399,39 @@ namespace SteamVR.NotifyPlugin.Notification
                     }
                     else if (stage == AnimationStage.EasingOut)
                     {
-                        transitionRatio = 1f - ((float)animationCount - stayLimit + 1) / easeOutCount; // +1 because we moved where we increment animationCount
+                        transitionRatio =
+                            1f - ((float)animationCount - stayLimit + 1) /
+                            easeOutCount; // +1 because we moved where we increment animationCount
                     }
+
                     transitionRatio = tween(transitionRatio);
                     var ratioReversed = 1f - transitionRatio;
 
                     // Transform
-                    if (stage != AnimationStage.Staying || animationCount == easeInLimit) { // Only performs animation on first frame of Staying stage.
+                    if (stage != AnimationStage.Staying || animationCount == easeInLimit)
+                    {
+                        // Only performs animation on first frame of Staying stage.
                         // Debug.WriteLine($"{animationCount} - {Enum.GetName(typeof(AnimationStage), stage)} - {Math.Round(ratio*100)/100}");
                         var translate = new HmdVector3_t()
-                        { 
-                            v0 = properties.xDistanceM + (transition.xDistanceM * ratioReversed) + animateX.GetRatio(animationSeconds),
-                            v1 = properties.yDistanceM + (transition.yDistanceM * ratioReversed) + animateY.GetRatio(animationSeconds),
-                            v2 = -properties.zDistanceM - (transition.zDistanceM * ratioReversed) - animateZ.GetRatio(animationSeconds)
+                        {
+                            v0 = properties.xDistanceM + (transition.xDistanceM * ratioReversed) +
+                                 animateX.GetRatio(animationSeconds),
+                            v1 = properties.yDistanceM + (transition.yDistanceM * ratioReversed) +
+                                 animateY.GetRatio(animationSeconds),
+                            v2 = -properties.zDistanceM - (transition.zDistanceM * ratioReversed) -
+                                 animateZ.GetRatio(animationSeconds)
                         };
 
                         #region Follow
+
                         // Follow
-                        if(follow.enabled && follow.durationMs > 0 && properties.anchorType != 0 && !properties.attachToAnchor)
+                        if (follow.enabled && follow.durationMs > 0 && properties.anchorType != 0 &&
+                            !properties.attachToAnchor)
                         {
-                            var currentPose = properties.anchorType == 0 
-                                ? EasyOpenVRSingleton.Utils.GetEmptyTransform() 
-                                : _vr.GetDeviceToAbsoluteTrackingPose()[anchorIndex == uint.MaxValue ? 0 : anchorIndex].mDeviceToAbsoluteTracking;
+                            var currentPose = properties.anchorType == 0
+                                ? EasyOpenVRSingleton.Utils.GetEmptyTransform()
+                                : _vr.GetDeviceToAbsoluteTrackingPose()[anchorIndex == uint.MaxValue ? 0 : anchorIndex]
+                                    .mDeviceToAbsoluteTracking;
                             var angleBetween = EasyOpenVRSingleton.Utils.AngleBetween(deviceTransform, currentPose);
                             if (angleBetween > follow.triggerAngle && !followIsLerping)
                             {
@@ -372,9 +445,11 @@ namespace SteamVR.NotifyPlugin.Notification
                                     if (properties.ignoreAnchorPitch) hmdEuler.v0 = 0;
                                     currentPose = currentPose.FromEuler(hmdEuler);
                                 }
+
                                 targetTransform = currentPose;
                             }
-                            if(followIsLerping)
+
+                            if (followIsLerping)
                             {
                                 followLerp += msPerFrame / follow.durationMs;
                                 if (followLerp > 1.0)
@@ -386,37 +461,52 @@ namespace SteamVR.NotifyPlugin.Notification
                                 }
                                 else
                                 {
-                                    deviceTransform = originTransform.Lerp(targetTransform, followTween((float)followLerp));
+                                    deviceTransform =
+                                        originTransform.Lerp(targetTransform, followTween((float)followLerp));
                                 }
                             }
                         }
+
                         #endregion
 
                         // Build transform with origin, transitions and animations
                         animationTransform = (properties.attachToAnchor || properties.anchorType == 0)
                             ? EasyOpenVRSingleton.Utils.GetEmptyTransform()
-							: deviceTransform;
-						
-                        if (properties.anchorType == 0) {
+                            : deviceTransform;
+
+                        if (properties.anchorType == 0)
+                        {
                             // World related, so all rotations are local to the overlay
                             animationTransform = animationTransform
                                 .Translate(translate)
-                                .RotateY(-properties.yawDeg + transition.yawDeg * ratioReversed + animateYaw.GetRatio(animationSeconds))
-                                .RotateX(properties.pitchDeg + transition.pitchDeg * ratioReversed + animatePitch.GetRatio(animationSeconds))
-                                .RotateZ(properties.rollDeg + transition.rollDeg * ratioReversed + animateRoll.GetRatio(animationSeconds));
-                        } else if (useWorldDeviceTransform) {
+                                .RotateY(-properties.yawDeg + transition.yawDeg * ratioReversed +
+                                         animateYaw.GetRatio(animationSeconds))
+                                .RotateX(properties.pitchDeg + transition.pitchDeg * ratioReversed +
+                                         animatePitch.GetRatio(animationSeconds))
+                                .RotateZ(properties.rollDeg + transition.rollDeg * ratioReversed +
+                                         animateRoll.GetRatio(animationSeconds));
+                        }
+                        else if (useWorldDeviceTransform)
+                        {
                             // Device related but using world coordinates, local overlay rotation and allows for rotation cancellation
-                            var anchorTransform = _vr.GetDeviceToAbsoluteTrackingPose()[anchorIndex == uint.MaxValue ? 0 : anchorIndex].mDeviceToAbsoluteTracking;
+                            var anchorTransform =
+                                _vr.GetDeviceToAbsoluteTrackingPose()[anchorIndex == uint.MaxValue ? 0 : anchorIndex]
+                                    .mDeviceToAbsoluteTracking;
                             HmdVector3_t hmdAnchorEuler = anchorTransform.EulerAngles();
                             if (properties.ignoreAnchorYaw) hmdAnchorEuler.v1 = 0;
                             if (properties.ignoreAnchorPitch) hmdAnchorEuler.v0 = 0;
                             if (properties.ignoreAnchorRoll) hmdAnchorEuler.v2 = 0;
                             animationTransform = anchorTransform.FromEuler(hmdAnchorEuler)
                                 .Translate(translate)
-                                .RotateY(-properties.yawDeg + transition.yawDeg * ratioReversed + animateYaw.GetRatio(animationSeconds))
-                                .RotateX(properties.pitchDeg + transition.pitchDeg * ratioReversed + animatePitch.GetRatio(animationSeconds))
-                                .RotateZ(properties.rollDeg + transition.rollDeg * ratioReversed + animateRoll.GetRatio(animationSeconds));
-                        } else {
+                                .RotateY(-properties.yawDeg + transition.yawDeg * ratioReversed +
+                                         animateYaw.GetRatio(animationSeconds))
+                                .RotateX(properties.pitchDeg + transition.pitchDeg * ratioReversed +
+                                         animatePitch.GetRatio(animationSeconds))
+                                .RotateZ(properties.rollDeg + transition.rollDeg * ratioReversed +
+                                         animateRoll.GetRatio(animationSeconds));
+                        }
+                        else
+                        {
                             // Device related, so all rotations are at the origin of the device
                             animationTransform = animationTransform
                                 // Properties
@@ -431,20 +521,23 @@ namespace SteamVR.NotifyPlugin.Notification
                         }
 
                         _vr.SetOverlayTransform(
-                            _overlayHandle, 
-                            animationTransform, 
+                            _overlayHandle,
+                            animationTransform,
                             (properties.attachToAnchor && !useWorldDeviceTransform)
-                                ? anchorIndex 
+                                ? anchorIndex
                                 : uint.MaxValue
                         );
-                        var transitionOpacityRatio = (transition.opacityPer + (transitionRatio * (1f - transition.opacityPer)));
+                        var transitionOpacityRatio =
+                            (transition.opacityPer + (transitionRatio * (1f - transition.opacityPer)));
                         _vr.SetOverlayAlpha(_overlayHandle,
-                                // the transition part becomes 0-1, times the property that sets the maximum, and we just add the animation value.
-                                (transitionOpacityRatio) * properties.opacityPer + animateOpacity.GetRatio(animationSeconds)
+                            // the transition part becomes 0-1, times the property that sets the maximum, and we just add the animation value.
+                            (transitionOpacityRatio) * properties.opacityPer + animateOpacity.GetRatio(animationSeconds)
                         );
-                        var transitionWidthRatio = (transition.scalePer + (transitionRatio * (1f - transition.scalePer)));
+                        var transitionWidthRatio =
+                            (transition.scalePer + (transitionRatio * (1f - transition.scalePer)));
                         _vr.SetOverlayWidth(_overlayHandle,
-                            Math.Max(0, width * transitionWidthRatio + (animateScale.GetRatio(animationSeconds) * width))
+                            Math.Max(0,
+                                width * transitionWidthRatio + (animateScale.GetRatio(animationSeconds) * width))
                         );
                     }
 
@@ -455,7 +548,8 @@ namespace SteamVR.NotifyPlugin.Notification
                     // We're done
                     if (animationCount >= easeOutLimit) stage = AnimationStage.Finished;
 
-                    if (stage == AnimationStage.Finished) {
+                    if (stage == AnimationStage.Finished)
+                    {
                         Debug.WriteLine("DONE!");
                         _vr.SetOverlayVisibility(_overlayHandle, false);
                         stage = AnimationStage.Idle;
@@ -468,31 +562,35 @@ namespace SteamVR.NotifyPlugin.Notification
                     }
                 }
 
-                if (_shouldShutdown) { // Finish
+                if (_shouldShutdown)
+                {
+                    // Finish
                     // _texture.Delete(); // TODO: Watch for possible instability here depending on what is going on timing-wise...
                     _texture = null;
                     OpenVR.Overlay.DestroyOverlay(_overlayHandle);
                     Thread.CurrentThread.Abort();
                 }
 
-                var timeSpent = (int) Math.Round((double) (DateTime.Now.Ticks - timeStarted) / TimeSpan.TicksPerMillisecond);
-                Thread.Sleep(Math.Max(1, msPerFrame-timeSpent)); // Animation time per frame adjusted by the time it took to animate.
+                var timeSpent =
+                    (int)Math.Round((double)(DateTime.Now.Ticks - timeStarted) / TimeSpan.TicksPerMillisecond);
+                Thread.Sleep(Math.Max(1,
+                    msPerFrame - timeSpent)); // Animation time per frame adjusted by the time it took to animate.
             }
         }
 
-        public void ProvideNewPayload(string sessionId, Payload payload) {
+        public void ProvideNewPayload(string sessionId, Payload payload)
+        {
             _sessionId = sessionId;
             _payload = payload;
         }
 
-        public void Shutdown() {
+        public void Shutdown()
+        {
             _requestForNewPayload = null;
             _responseAtCompletion = null;
             _responseAtError = null;
             _payload = null;
             _shouldShutdown = true;
         }
-
-
     }
 }

@@ -113,7 +113,7 @@ namespace SteamVR.NotifyPlugin
                         _vr.UpdateEvents(false);
                     }
 
-                    Thread.Sleep(5500);
+                    Thread.Sleep(500);
                 }
                 else
                 {
@@ -131,9 +131,16 @@ namespace SteamVR.NotifyPlugin
                     _shouldShutDown = false;
                     initComplete = false;
                     foreach (var overlay in Session.Overlays.Values) overlay.Deinit();
-                    _vr.AcknowledgeShutdown();
-                    Thread.Sleep(500); // Allow things to deinit properly
-                    _vr.Shutdown();
+                    try
+                    {
+                        _vr.AcknowledgeShutdown();
+                        Thread.Sleep(500); // Allow things to deinit properly
+                        _vr.Shutdown();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error shutting down OpenVR: {ex.Message}");
+                    }
                     // access main window and dispose notify icon
                     _mainWindow.Shutdown();
                     return;

@@ -16,6 +16,7 @@ namespace SteamVR.NotifyPlugin
         // General
         public string imageData = "";
         public string imagePath = "";
+        public string imageUrl = "";
 
         // Standard notification
         public string basicTitle = "SteamVR.NotifyPlugin";
@@ -109,6 +110,7 @@ namespace SteamVR.NotifyPlugin
             {
                 imageData = payload.imageData;
                 imagePath = payload.imagePath;
+                imageUrl = payload.imageUrl;
                 basicTitle = payload.basicTitle;
                 basicMessage = payload.basicMessage;
                 customProperties = payload.customProperties;

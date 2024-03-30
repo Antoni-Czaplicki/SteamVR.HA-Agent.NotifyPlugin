@@ -136,7 +136,6 @@
     <Compile Include="Notification\Tween.cs" />
     <Compile Include="Notification\Overlay.cs" />
     <Compile Include="Notification\Payload.cs" />
-    <Compile Include="Sensor\State.cs" />
     <Compile Include="Session.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
